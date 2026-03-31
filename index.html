@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Barbie's Dream House Decorator</title>
     <style>
         :root {
@@ -13,6 +13,7 @@
 
         * {
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -25,6 +26,7 @@
             height: 100vh;
             overflow: hidden;
             touch-action: none;
+            overscroll-behavior: none;
         }
 
         #ui-panel {
@@ -57,6 +59,7 @@
             flex: 1;
             min-height: 0;
             width: 100%;
+            position: relative;
         }
 
         /* Панель мебели слева - 3 колонки */
@@ -73,6 +76,7 @@
             overflow: visible;
             align-items: center;
             justify-content: center;
+            touch-action: none;
         }
 
         /* Комнаты справа - уже */
@@ -102,6 +106,7 @@
             background-size: cover;
             background-position: center;
             overflow: hidden;
+            touch-action: none;
         }
 
         #bedroom { 
@@ -144,6 +149,14 @@
             justify-content: center;
             transition: transform 0.2s;
             z-index: 10;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .item:active {
+            cursor: grabbing;
         }
 
         .room .item {
@@ -152,6 +165,7 @@
             padding: 5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             margin: 3px;
+            position: relative;
         }
 
         .item img {
@@ -159,14 +173,30 @@
             height: 100%;
             object-fit: contain;
             pointer-events: none;
+            -webkit-user-drag: none;
         }
 
         .item-emoji {
             font-size: 2.5rem;
             pointer-events: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
-        .dragging { opacity: 0.5; transform: scale(1.3); }
+        .dragging { 
+            opacity: 0.5; 
+            transform: scale(1.3); 
+            z-index: 1000 !important;
+        }
+
+        /* Стили для перетаскиваемого элемента на мобильных */
+        .touch-dragging {
+            position: fixed !important;
+            z-index: 9999 !important;
+            pointer-events: none;
+            opacity: 0.8;
+            transform: scale(1.2);
+        }
 
         button {
             background: var(--barbie-pink);
@@ -178,8 +208,15 @@
             cursor: pointer;
             box-shadow: 0 4px 0 #d81b60;
             font-family: inherit;
+            touch-action: manipulation;
         }
 
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #d81b60;
+        }
+
+        /* Адаптация для мобильных устройств */
         @media (max-width: 900px) {
             #game-container {
                 flex-direction: column;
@@ -201,14 +238,27 @@
         }
 
         @media (max-width: 600px) {
-            .room { min-height: 100px; padding: 5px; }
-            .item { width: 50px; height: 50px; }
+            body {
+                padding: 5px;
+            }
+            .room { 
+                min-height: 100px; 
+                padding: 5px; 
+            }
+            .item { 
+                width: 50px; 
+                height: 50px; 
+            }
             #furniture-storage {
                 grid-template-columns: repeat(6, 1fr);
                 max-height: 100px;
+                padding: 10px;
             }
             .room-name {
                 font-size: 0.65rem;
+            }
+            #instruction {
+                font-size: 1.1rem;
             }
         }
     </style>
@@ -268,12 +318,17 @@
             { id: 'it15', name: 'Flowers', room: 'livingroom' }
         ];
 
-        // Предметы во множественном числе (требуют "are")
         const pluralItems = ['Pictures', 'Flowers', 'Cupboards'];
 
         let currentTask = null;
         const storage = document.getElementById('furniture-storage');
         const instruction = document.getElementById('instruction');
+        
+        // Переменные для touch событий
+        let activeTouchItem = null;
+        let touchClone = null;
+        let touchOffsetX = 0;
+        let touchOffsetY = 0;
 
         function getItemContent(id) {
             const source = visuals[id];
@@ -293,11 +348,14 @@
                 div.draggable = true;
                 div.innerHTML = getItemContent(data.id);
                 
+                // Desktop drag events
                 div.addEventListener('dragstart', dragStart);
                 div.addEventListener('dragend', dragEnd);
-                div.addEventListener('touchstart', touchStart, {passive: false});
-                div.addEventListener('touchmove', touchMove, {passive: false});
-                div.addEventListener('touchend', touchEnd);
+                
+                // Touch events для мобильных
+                div.addEventListener('touchstart', handleTouchStart, {passive: false});
+                div.addEventListener('touchmove', handleTouchMove, {passive: false});
+                div.addEventListener('touchend', handleTouchEnd, {passive: false});
 
                 storage.appendChild(div);
             });
@@ -329,7 +387,6 @@
                 livingroom: "living room", bathroom: "bathroom"
             };
             
-            // Исправленная грамматика: проверяем множественное число
             const verb = pluralItems.includes(currentTask.name) ? 'are' : 'is';
             const taskText = `The ${currentTask.name} ${verb} in the ${roomNames[currentTask.room]}.`;
             
@@ -338,25 +395,37 @@
             document.getElementById('start-btn').innerText = "Repeat Task 🔊";
         }
 
+        // Desktop Drag & Drop
         function dragStart(e) { 
             e.dataTransfer.setData('text/plain', e.target.id); 
             e.target.classList.add('dragging'); 
         }
-        function dragEnd(e) { e.target.classList.remove('dragging'); }
+        function dragEnd(e) { 
+            e.target.classList.remove('dragging'); 
+        }
 
         document.querySelectorAll('.room').forEach(room => {
             room.addEventListener('dragover', e => e.preventDefault());
             room.addEventListener('drop', e => {
                 e.preventDefault();
                 const id = e.dataTransfer.getData('text/plain');
-                handleDrop(id, room);
+                const item = document.getElementById(id);
+                if (item) {
+                    handleDrop(id, room);
+                    item.classList.remove('dragging');
+                }
             });
         });
 
         function handleDrop(itemId, targetRoomElement) {
             const targetRoomName = targetRoomElement.getAttribute('data-room');
             if (currentTask && itemId === currentTask.id && targetRoomName === currentTask.room) {
-                targetRoomElement.appendChild(document.getElementById(itemId));
+                const item = document.getElementById(itemId);
+                targetRoomElement.appendChild(item);
+                item.classList.remove('dragging', 'touch-dragging');
+                item.style.position = '';
+                item.style.left = '';
+                item.style.top = '';
                 instruction.innerText = "Good job! ✨";
                 speak("Good job!");
                 setTimeout(nextTask, 1200);
@@ -366,24 +435,65 @@
             }
         }
 
-        let activeTouchItem = null;
-        function touchStart(e) { activeTouchItem = e.currentTarget; activeTouchItem.classList.add('dragging'); }
-        function touchMove(e) {
-            if (!activeTouchItem) return;
+        // Touch события для мобильных устройств
+        function handleTouchStart(e) {
             e.preventDefault();
             const touch = e.touches[0];
-            activeTouchItem.style.position = 'fixed';
-            activeTouchItem.style.left = (touch.clientX - 35) + 'px';
-            activeTouchItem.style.top = (touch.clientY - 35) + 'px';
+            activeTouchItem = e.currentTarget;
+            
+            // Создаем клон для перетаскивания
+            touchClone = activeTouchItem.cloneNode(true);
+            touchClone.classList.add('touch-dragging');
+            touchClone.classList.remove('dragging');
+            touchClone.style.width = activeTouchItem.offsetWidth + 'px';
+            touchClone.style.height = activeTouchItem.offsetHeight + 'px';
+            
+            // Вычисляем смещение
+            const rect = activeTouchItem.getBoundingClientRect();
+            touchOffsetX = touch.clientX - rect.left;
+            touchOffsetY = touch.clientY - rect.top;
+            
+            // Позиционируем клон
+            touchClone.style.left = (touch.clientX - touchOffsetX) + 'px';
+            touchClone.style.top = (touch.clientY - touchOffsetY) + 'px';
+            
+            document.body.appendChild(touchClone);
+            activeTouchItem.style.opacity = '0.3';
         }
-        function touchEnd(e) {
-            if (!activeTouchItem) return;
-            activeTouchItem.classList.remove('dragging');
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (!touchClone) return;
+            
+            const touch = e.touches[0];
+            touchClone.style.left = (touch.clientX - touchOffsetX) + 'px';
+            touchClone.style.top = (touch.clientY - touchOffsetY) + 'px';
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            if (!touchClone || !activeTouchItem) return;
+            
             const touch = e.changedTouches[0];
+            
+            // Скрываем клон на мгновение чтобы найти элемент под ним
+            touchClone.style.display = 'none';
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            touchClone.style.display = 'flex';
+            
             const room = target ? target.closest('.room') : null;
-            activeTouchItem.style.position = 'static';
-            if (room) handleDrop(activeTouchItem.id, room);
+            
+            if (room) {
+                handleDrop(activeTouchItem.id, room);
+            } else {
+                // Возвращаем на место
+                activeTouchItem.style.opacity = '1';
+                activeTouchItem.classList.remove('dragging');
+            }
+            
+            // Удаляем клон
+            document.body.removeChild(touchClone);
+            touchClone = null;
             activeTouchItem = null;
         }
 
