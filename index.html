@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barbie's Dream House Decorator</title>
+    <style>
+        :root {
+            --barbie-pink: #ff69b4;
+            --soft-pink: #ffc0cb;
+            --bg-color: #fff5f8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: 'Comic Sans MS', cursive;
+            background: url('images/фон.png') center/cover no-repeat;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #ui-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            border: 3px solid var(--barbie-pink);
+            text-align: center;
+            width: 100%;
+            max-width: 100%;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        #instruction {
+            font-size: 1.4rem;
+            color: #d81b60;
+            margin-bottom: 10px;
+            min-height: 1.6em;
+            font-weight: bold;
+        }
+
+        /* Контейнер для игры (мебель слева + комнаты справа) */
+        #game-container {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+        }
+
+        /* Панель мебели слева - 3 колонки */
+        #furniture-storage {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding: 15px;
+            background: white;
+            border-radius: 20px;
+            border: 3px solid var(--soft-pink);
+            width: 240px;
+            flex-shrink: 0;
+            overflow: visible;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Комнаты справа - уже */
+        #house {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+            background: white;
+            padding: 10px;
+            border: 5px solid var(--barbie-pink);
+            border-radius: 20px;
+        }
+
+        .room {
+            min-height: 0;
+            border: 2px dashed var(--soft-pink);
+            border-radius: 15px;
+            position: relative;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: center;
+            justify-content: center;
+            padding: 8px;
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+        }
+
+        #bedroom { 
+            background-color: #fff9f9; 
+            background-image: url('images/bedroom.png'); 
+        }
+        #kitchen { 
+            background-color: #f0fdf4; 
+            background-image: url('images/kitchen.png'); 
+        }
+        #livingroom { 
+            background-color: #fffaf0; 
+            background-image: url('images/livingroom.png'); 
+        }
+        #bathroom { 
+            background-color: #f0f9ff; 
+            background-image: url('images/bathroom.png'); 
+        }
+
+        .room-name {
+            position: absolute;
+            top: 5px;
+            left: 8px;
+            background: rgba(255, 255, 255, 0.7);
+            color: var(--barbie-pink);
+            font-weight: bold;
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+
+        /* Мебель */
+        .item {
+            width: 65px;
+            height: 65px;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+            z-index: 10;
+        }
+
+        .room .item {
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 12px;
+            padding: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin: 3px;
+        }
+
+        .item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .item-emoji {
+            font-size: 2.5rem;
+            pointer-events: none;
+        }
+
+        .dragging { opacity: 0.5; transform: scale(1.3); }
+
+        button {
+            background: var(--barbie-pink);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #d81b60;
+            font-family: inherit;
+        }
+
+        @media (max-width: 900px) {
+            #game-container {
+                flex-direction: column;
+            }
+            #furniture-storage {
+                width: 100%;
+                grid-template-columns: repeat(8, 1fr);
+                height: auto;
+                max-height: 120px;
+                overflow-y: auto;
+            }
+            #house {
+                grid-template-columns: 1fr 1fr;
+            }
+            .item {
+                width: 60px;
+                height: 60px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .room { min-height: 100px; padding: 5px; }
+            .item { width: 50px; height: 50px; }
+            #furniture-storage {
+                grid-template-columns: repeat(6, 1fr);
+                max-height: 100px;
+            }
+            .room-name {
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <div id="instruction">Welcome! Press Start to play.</div>
+        <button id="start-btn" onclick="nextTask()">Start Game ✨</button>
+    </div>
+
+    <div id="game-container">
+        <div id="furniture-storage"></div>
+        
+        <div id="house">
+            <div class="room" id="bedroom" data-room="bedroom"><span class="room-name">Bedroom</span></div>
+            <div class="room" id="kitchen" data-room="kitchen"><span class="room-name">Kitchen</span></div>
+            <div class="room" id="livingroom" data-room="livingroom"><span class="room-name">Living Room</span></div>
+            <div class="room" id="bathroom" data-room="bathroom"><span class="room-name">Bathroom</span></div>
+        </div>
+    </div>
+
+    <script>
+        const visuals = {
+            it1: 'images/bed.png',
+            it2: 'images/clock.png',
+            it3: 'images/fridge.png',
+            it4: 'images/table.png',
+            it5: 'images/sofa.png',
+            it6: 'images/TV.png',
+            it7: 'images/bath.png',
+            it8: 'images/mirror.png',
+            it9: 'images/mat.png',
+            it10: 'images/book.png',
+            it11: 'images/cupboards.png',
+            it12: 'images/armchair.png',
+            it13: 'images/chair.png',
+            it14: 'images/pictures.png',
+            it15: 'images/flowers.png'
+        };
+
+        const itemsData = [
+            { id: 'it1', name: 'Bed', room: 'bedroom' },
+            { id: 'it2', name: 'Clock', room: 'bedroom' },
+            { id: 'it3', name: 'Fridge', room: 'kitchen' },
+            { id: 'it4', name: 'Table', room: 'kitchen' },
+            { id: 'it5', name: 'Sofa', room: 'livingroom' },
+            { id: 'it6', name: 'Television', room: 'livingroom' },
+            { id: 'it7', name: 'Bath', room: 'bathroom' },
+            { id: 'it8', name: 'Mirror', room: 'bathroom' },
+            { id: 'it9', name: 'Mat', room: 'bathroom' },
+            { id: 'it10', name: 'Bookcase', room: 'livingroom' },
+            { id: 'it11', name: 'Cupboards', room: 'kitchen' },
+            { id: 'it12', name: 'Armchair', room: 'livingroom' },
+            { id: 'it13', name: 'Chair', room: 'kitchen' },
+            { id: 'it14', name: 'Pictures', room: 'bedroom' },
+            { id: 'it15', name: 'Flowers', room: 'livingroom' }
+        ];
+
+        // Предметы во множественном числе (требуют "are")
+        const pluralItems = ['Pictures', 'Flowers', 'Cupboards'];
+
+        let currentTask = null;
+        const storage = document.getElementById('furniture-storage');
+        const instruction = document.getElementById('instruction');
+
+        function getItemContent(id) {
+            const source = visuals[id];
+            if (source.length > 2) {
+                return `<img src="${source}" alt="furniture">`;
+            } else {
+                return `<span class="item-emoji">${source}</span>`;
+            }
+        }
+
+        function initItems() {
+            storage.innerHTML = '';
+            itemsData.forEach(data => {
+                const div = document.createElement('div');
+                div.className = 'item';
+                div.id = data.id;
+                div.draggable = true;
+                div.innerHTML = getItemContent(data.id);
+                
+                div.addEventListener('dragstart', dragStart);
+                div.addEventListener('dragend', dragEnd);
+                div.addEventListener('touchstart', touchStart, {passive: false});
+                div.addEventListener('touchmove', touchMove, {passive: false});
+                div.addEventListener('touchend', touchEnd);
+
+                storage.appendChild(div);
+            });
+        }
+
+        function speak(text) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.85;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function nextTask() {
+            const remaining = itemsData.filter(d => {
+                const el = document.getElementById(d.id);
+                return el && el.parentElement.id === 'furniture-storage';
+            });
+            
+            if (remaining.length === 0) {
+                instruction.innerText = "Fantastic! The house is perfect! 💖";
+                speak("Fantastic! The house is perfect!");
+                return;
+            }
+
+            currentTask = remaining[Math.floor(Math.random() * remaining.length)];
+            const roomNames = {
+                bedroom: "bedroom", kitchen: "kitchen",
+                livingroom: "living room", bathroom: "bathroom"
+            };
+            
+            // Исправленная грамматика: проверяем множественное число
+            const verb = pluralItems.includes(currentTask.name) ? 'are' : 'is';
+            const taskText = `The ${currentTask.name} ${verb} in the ${roomNames[currentTask.room]}.`;
+            
+            instruction.innerText = taskText;
+            speak(taskText);
+            document.getElementById('start-btn').innerText = "Repeat Task 🔊";
+        }
+
+        function dragStart(e) { 
+            e.dataTransfer.setData('text/plain', e.target.id); 
+            e.target.classList.add('dragging'); 
+        }
+        function dragEnd(e) { e.target.classList.remove('dragging'); }
+
+        document.querySelectorAll('.room').forEach(room => {
+            room.addEventListener('dragover', e => e.preventDefault());
+            room.addEventListener('drop', e => {
+                e.preventDefault();
+                const id = e.dataTransfer.getData('text/plain');
+                handleDrop(id, room);
+            });
+        });
+
+        function handleDrop(itemId, targetRoomElement) {
+            const targetRoomName = targetRoomElement.getAttribute('data-room');
+            if (currentTask && itemId === currentTask.id && targetRoomName === currentTask.room) {
+                targetRoomElement.appendChild(document.getElementById(itemId));
+                instruction.innerText = "Good job! ✨";
+                speak("Good job!");
+                setTimeout(nextTask, 1200);
+            } else {
+                instruction.innerText = "Try again! Listen closely.";
+                speak("Try again.");
+            }
+        }
+
+        let activeTouchItem = null;
+        function touchStart(e) { activeTouchItem = e.currentTarget; activeTouchItem.classList.add('dragging'); }
+        function touchMove(e) {
+            if (!activeTouchItem) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            activeTouchItem.style.position = 'fixed';
+            activeTouchItem.style.left = (touch.clientX - 35) + 'px';
+            activeTouchItem.style.top = (touch.clientY - 35) + 'px';
+        }
+        function touchEnd(e) {
+            if (!activeTouchItem) return;
+            activeTouchItem.classList.remove('dragging');
+            const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const room = target ? target.closest('.room') : null;
+            activeTouchItem.style.position = 'static';
+            if (room) handleDrop(activeTouchItem.id, room);
+            activeTouchItem = null;
+        }
+
+        initItems();
+    </script>
+</body>
+</html>
